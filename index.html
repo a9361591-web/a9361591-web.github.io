@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>隨機計時器</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <meta name="apple-mobile-web-app-title" content="隨機計時">
+    
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192/2ecc71/ffffff?text=Timer">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 { font-size: 24px; margin-bottom: 20px; }
+        .settings-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 350px;
+            margin-bottom: 30px;
+        }
+        .input-group {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .input-group input {
+            width: 80px;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+            text-align: center;
+        }
+        .time-display {
+            font-size: 48px;
+            font-weight: bold;
+            font-family: monospace;
+            margin-bottom: 30px;
+            color: #333;
+        }
+        .time-display.running { color: #e74c3c; }
+        .controls button {
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            width: 150px;
+            transition: background 0.2s;
+        }
+        .btn-start { background-color: #2ecc71; }
+        .btn-stop { background-color: #e74c3c; display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>隨機提示音計時器</h1>
+
+    <div class="settings-card">
+        <div class="input-group">
+            <label>總倒數時間 (秒):</label>
+            <input type="number" id="totalTime" value="120">
+        </div>
+        <div class="input-group">
+            <label>最短間隔 (秒):</label>
+            <input type="number" id="minInterval" value="2" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>最長間隔 (秒):</label>
+            <input type="number" id="maxInterval" value="8" step="0.1">
+        </div>
+    </div>
+
+    <div class="time-display" id="timeDisplay">剩餘: 120.0</div>
+
+    <div class="controls">
+        <button class="btn-start" id="startBtn" onclick="startTimer()">開始</button>
+        <button class="btn-stop" id="stopBtn" onclick="stopTimer()">停止</button>
+    </div>
+
+    <script>
+        let timeRemaining = 0;
+        let isRunning = false;
+        let mainTimerInterval = null;
+        let beepTimeout = null;
+        
+        // 建立音效 Context (Web Audio API)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // 播放「逼」聲的函數
+        function playBeep(frequency = 800, duration = 150) {
+            // 確保瀏覽器允許播放音效 (解決 Autoplay Policy)
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = 'sine'; // 聲音類型：正弦波
+            oscillator.frequency.value = frequency; // 頻率 (音高)
+            
+            // 音量控制
+            gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start();
+            setTimeout(() => {
+                oscillator.stop();
+            }, duration);
+        }
+
+        function updateDisplay() {
+            const display = document.getElementById('timeDisplay');
+            display.innerText = `剩餘: ${timeRemaining.toFixed(1)}`;
+            if (isRunning) {
+                display.classList.add('running');
+            } else {
+                display.classList.remove('running');
+            }
+        }
+
+        function startTimer() {
+            // 取得使用者設定
+            const totalTime = parseFloat(document.getElementById('totalTime').value);
+            const minInt = parseFloat(document.getElementById('minInterval').value);
+            const maxInt = parseFloat(document.getElementById('maxInterval').value);
+
+            if (isNaN(totalTime) || isNaN(minInt) || isNaN(maxInt) || minInt > maxInt || totalTime <= 0) {
+                alert("請輸入有效的時間數字，且最短間隔不能大於最長間隔！");
+                return;
+            }
+
+            timeRemaining = totalTime;
+            isRunning = true;
+            
+            // UI 切換
+            document.getElementById('startBtn').style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline-block';
+            
+            // 啟用 Web Audio (必須在使用者點擊按鈕的當下啟用)
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            updateDisplay();
+
+            // 1. 啟動主計時器 (每 0.1 秒更新)
+            mainTimerInterval = setInterval(() => {
+                if (timeRemaining > 0.1) {
+                    timeRemaining -= 0.1;
+                    updateDisplay();
+                } else {
+                    timeRemaining = 0;
+                    updateDisplay();
+                    stopTimer();
+                    playBeep(400, 1000); // 結束時發出低音長音
+                }
+            }, 100);
+
+            // 2. 啟動隨機提示音循環
+            scheduleNextBeep(minInt, maxInt);
+        }
+
+        function stopTimer() {
+            isRunning = false;
+            
+            // 清除計時與延遲任務
+            clearInterval(mainTimerInterval);
+            clearTimeout(beepTimeout);
+            
+            // UI 切換
+            document.getElementById('startBtn').style.display = 'inline-block';
+            document.getElementById('stopBtn').style.display = 'none';
+            updateDisplay();
+        }
+
+        function scheduleNextBeep(minInt, maxInt) {
+            if (!isRunning || timeRemaining <= 0) return;
+
+            // 隨機產生間隔時間 (毫秒)
+            const randomDelay = (Math.random() * (maxInt - minInt) + minInt) * 1000;
+
+            // 設定下一次的提示音
+            beepTimeout = setTimeout(() => {
+                if (isRunning && timeRemaining > 0) {
+                    playBeep(); // 發出聲音
+                    scheduleNextBeep(minInt, maxInt); // 遞迴排程下一次
+                }
+            }, randomDelay);
+        }
+    </script>
+</body>
+</html>
