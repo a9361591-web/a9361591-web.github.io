@@ -106,30 +106,30 @@
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
         // 播放「逼」聲的函數
-        function playBeep(frequency = 800, duration = 150) {
-            // 確保瀏覽器允許播放音效 (解決 Autoplay Policy)
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
-            }
-            
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            
-            oscillator.type = 'sine'; // 聲音類型：正弦波
-            oscillator.frequency.value = frequency; // 頻率 (音高)
-            
-            // 音量控制
-            gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            oscillator.start();
-            setTimeout(() => {
-                oscillator.stop();
-            }, duration);
-        }
+        function playBeep(frequency = 1200, duration = 150) {
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+    
+    // 【修改這裡】將 'sine' 改成 'square' (方波) 或 'sawtooth' (鋸齒波)
+    oscillator.type = 'square'; 
+    oscillator.frequency.value = frequency; 
+    
+    // 這裡的 1 已經是數位音量的最大值 (再大會破音)
+    gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration / 1000);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    
+    oscillator.start();
+    setTimeout(() => {
+        oscillator.stop();
+    }, duration);
+}
 
         function updateDisplay() {
             const display = document.getElementById('timeDisplay');
@@ -212,4 +212,5 @@
         }
     </script>
 </body>
+
 </html>
